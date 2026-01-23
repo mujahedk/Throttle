@@ -1,9 +1,4 @@
-Absolutely — here is a **GitHub-ready README** written in clean **Markdown**, with proper headings, bullet points, and code blocks.
-You can paste this directly into `README.md`.
-
 ---
-
-# Throttle
 
 **Throttle** is a lightweight API gateway that enforces per-API-key rate limiting, returns standardized error responses, and exposes real-time observability through metrics and a live dashboard.
 
