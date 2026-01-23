@@ -1,6 +1,7 @@
 import uuid
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.core.config import settings
@@ -10,11 +11,20 @@ from app.core.rate_limit import check_rate_limit
 from app.core.metrics import metrics
 from app.core.events import events
 
-EXEMPT_PATH_PREFIXES = ("/health", "/docs", "/redoc", "/openapi.json")
+EXEMPT_PATH_PREFIXES = (
+    "/health",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/dashboard",
+    "/static",
+)
+
 NO_RATE_LIMIT_PREFIXES = ("/admin",)
 
 app = FastAPI(title="Throttle", version="0.3.0")
 app.include_router(router)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Create one Redis client for the whole process (connection pool under the hood)
 redis_client = get_redis_client()
