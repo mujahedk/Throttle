@@ -56,6 +56,7 @@ Metrics and events are stored in memory (intentional MVP choice)
 🔐 Authentication
 
 Protected endpoints require an API key:
+
 ```
 x-api-key: <your_api_key>
 ```
