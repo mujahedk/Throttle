@@ -1,4 +1,4 @@
----
+# Throttle
 
 **Throttle** is a lightweight API gateway that enforces per-API-key rate limiting, returns standardized error responses, and exposes real-time observability through metrics and a live dashboard.
 
@@ -298,12 +298,3 @@ Throttle is a focused systems project that demonstrates:
 It is intentionally small — and intentionally **real**.
 
 ---
-
-If you want next:
-
-- architecture diagrams
-- a `demo.sh` script
-- resume-optimized project bullets
-- interview walkthrough prep
-
-Just tell me what to do next.
