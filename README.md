@@ -1,4 +1,4 @@
-###Throttle###
+Throttle
 
 Throttle is a lightweight API gateway that enforces per-API-key rate limiting, returns standardized error responses, and exposes real-time observability through metrics and a live dashboard.
 
@@ -56,8 +56,9 @@ Metrics and events are stored in memory (intentional MVP choice)
 🔐 Authentication
 
 Protected endpoints require an API key:
-
+```
 x-api-key: <your_api_key>
+```
 
 Authentication behavior:
 
