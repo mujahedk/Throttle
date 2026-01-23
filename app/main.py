@@ -7,12 +7,16 @@ from app.core.config import settings
 from app.core.errors import APIError
 from app.core.redis_client import get_redis_client
 from app.core.rate_limit import check_rate_limit
+from app.core.metrics import metrics
+from app.core.events import events
 
 EXEMPT_PATH_PREFIXES = ("/health", "/docs", "/redoc", "/openapi.json")
+NO_RATE_LIMIT_PREFIXES = ("/admin",)
 
-app = FastAPI(title="Throttle", version="0.2.0")
+app = FastAPI(title="Throttle", version="0.3.0")
 app.include_router(router)
 
+# Create one Redis client for the whole process (connection pool under the hood)
 redis_client = get_redis_client()
 
 
@@ -26,22 +30,34 @@ def is_exempt_path(path: str) -> bool:
     return any(path.startswith(p) for p in EXEMPT_PATH_PREFIXES)
 
 
+def is_rate_limit_exempt_path(path: str) -> bool:
+    """
+    Paths that should still require auth but should NOT be rate-limited.
+    Admin endpoints are the classic example.
+    """
+    return any(path.startswith(p) for p in NO_RATE_LIMIT_PREFIXES)
+
+
 @app.middleware("http")
 async def throttle_middleware(request: Request, call_next):
     """
-    Throttle middleware (Day 2):
+    Throttle middleware (Day 3):
 
     1) assigns request_id (for tracing)
     2) enforces API key authentication
     3) applies Redis-backed fixed-window rate limiting per API key
-    4) returns standardized errors for APIError + unexpected errors
-    5) guarantees headers (X-Request-Id, X-RateLimit-*) on every response
+    4) logs metrics + rate-limit events
+    5) returns standardized errors for APIError + unexpected errors
+    6) guarantees headers (X-Request-Id, X-RateLimit-*) on every response
     """
     # -------------------------
-    # 1) Request ID
+    # 1) Request ID (always first)
     # -------------------------
     request_id = request.headers.get("X-Request-Id") or str(uuid.uuid4())
     request.state.request_id = request_id
+
+    # Metrics: every request counts (even failures)
+    metrics.inc_total()
 
     # We'll store rate-limit info on request.state so we can add headers later
     request.state.rate_limit = None
@@ -54,6 +70,8 @@ async def throttle_middleware(request: Request, call_next):
             api_key = request.headers.get("x-api-key")
 
             if not api_key:
+                # Metrics: missing key
+                metrics.inc_auth_missing()
                 raise APIError(
                     status_code=401,
                     code="AUTH_MISSING",
@@ -61,6 +79,8 @@ async def throttle_middleware(request: Request, call_next):
                 )
 
             if api_key not in settings.api_key_set:
+                # Metrics: invalid key
+                metrics.inc_auth_invalid()
                 raise APIError(
                     status_code=403,
                     code="AUTH_INVALID",
@@ -72,34 +92,55 @@ async def throttle_middleware(request: Request, call_next):
 
             # -------------------------
             # 3) Rate limit (fixed window using Redis)
-            # ------------------------
-
-            rl = check_rate_limit(
-                r=redis_client,
-                api_key=api_key,
-                limit=settings.throttle_rate_limit,
-                window_seconds=settings.throttle_window_seconds,
-            )
-
-            # Save the rate limit result for headers (even on errors)
-            request.state.rate_limit = rl
-
-            if not rl.allowed:
-                raise APIError(
-                    status_code=429,
-                    code="RATE_LIMITED",
-                    message="Too many requests. Please retry later.",
-                    details={
-                        "limit": rl.limit,
-                        "remaining": rl.remaining,
-                        "reset": rl.reset_epoch_seconds,
-                        "retry_after": rl.retry_after_seconds,
-                        "count": rl.current_count,
-                    },
+            # -------------------------
+            if not is_rate_limit_exempt_path(request.url.path):
+                rl = check_rate_limit(
+                    r=redis_client,
+                    api_key=api_key,
+                    limit=settings.throttle_rate_limit,
+                    window_seconds=settings.throttle_window_seconds,
                 )
 
+                # Save the rate limit result for headers (even on errors)
+                request.state.rate_limit = rl
+
+                # Metrics + events (only when rate limiting is active)
+                if rl.allowed:
+                    metrics.inc_allowed(api_key)
+                else:
+                    metrics.inc_blocked(api_key)
+                    events.add_rate_limit_event(
+                        request_id=request_id,
+                        path=str(request.url.path),
+                        api_key=api_key,
+                        details={
+                            "limit": rl.limit,
+                            "remaining": rl.remaining,
+                            "reset": rl.reset_epoch_seconds,
+                            "retry_after": rl.retry_after_seconds,
+                            "count": rl.current_count,
+                        },
+                    )
+
+                if not rl.allowed:
+                    raise APIError(
+                        status_code=429,
+                        code="RATE_LIMITED",
+                        message="Too many requests. Please retry later.",
+                        details={
+                            "limit": rl.limit,
+                            "remaining": rl.remaining,
+                            "reset": rl.reset_epoch_seconds,
+                            "retry_after": rl.retry_after_seconds,
+                            "count": rl.current_count,
+                        },
+                    )
+            else:
+                # Admin endpoints: still authenticated, but not rate-limited
+                metrics.inc_allowed(api_key)
+
         # -------------------------
-        # 4) Continue to route handler
+        # 5) Continue to route handler
         # -------------------------
         response = await call_next(request)
 
@@ -118,7 +159,7 @@ async def throttle_middleware(request: Request, call_next):
 
         # In dev, include the exception message so you can diagnose faster.
         details = {}
-        if settings.throttle_env == "dev":
+        if getattr(settings, "throttle_env", "dev") == "dev":
             details = {"exception": repr(exc)}
 
         payload = {
@@ -134,7 +175,7 @@ async def throttle_middleware(request: Request, call_next):
         response = JSONResponse(status_code=500, content=payload)
 
     # -------------------------
-    # 5) Always add headers
+    # 6) Always add headers
     # -------------------------
     response.headers["X-Request-Id"] = request_id
 

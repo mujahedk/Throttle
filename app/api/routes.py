@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Request
+from app.api.admin import router as admin_router
 
 router = APIRouter()
+
+router.include_router(admin_router)
 
 
 @router.get("/health")
