@@ -8,10 +8,6 @@ from app.core.metrics import mask_key
 
 @dataclass
 class RateLimitEvent:
-    """
-    Represents a single "rate limit exceeded" event.
-    This is what the dashboard will show in a recent events table.
-    """
     timestamp_epoch: int
     request_id: str
     path: str
@@ -22,11 +18,8 @@ class RateLimitEvent:
 
 class EventStore:
     """
-    Thread-safe rolling event buffer.
-
-    Rolling buffer means:
-    - we keep only the last N events
-    - if a new event arrives and we're full, we drop the oldest
+    Thread-safe rolling buffer of rate-limit events.
+    Keeps the most recent N events; oldest are dropped when full.
     """
 
     def __init__(self, max_events: int = 200) -> None:
@@ -48,25 +41,14 @@ class EventStore:
             api_key_masked=mask_key(api_key),
             details=details or {},
         )
-
         with self._lock:
             self._events.append(evt)
-
-            # enforce rolling buffer size
             if len(self._events) > self._max_events:
-                overflow = len(self._events) - self._max_events
-                # drop the oldest `overflow` events
-                self._events = self._events[overflow:]
+                self._events = self._events[len(self._events) - self._max_events:]
 
     def list_events(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """
-        Return most recent events first.
-        We return dicts (JSON-ready) instead of dataclass objects.
-        """
         with self._lock:
-            recent = self._events[-limit:]  # last `limit` events
-            recent_reversed = list(reversed(recent))
-
+            recent = list(reversed(self._events[-limit:]))
         return [
             {
                 "timestamp_epoch": e.timestamp_epoch,
@@ -76,9 +58,8 @@ class EventStore:
                 "status_code": e.status_code,
                 "details": e.details,
             }
-            for e in recent_reversed
+            for e in recent
         ]
 
 
-# Global singleton store (simple MVP approach)
 events = EventStore(max_events=200)

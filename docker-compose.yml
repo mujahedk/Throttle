@@ -1,0 +1,28 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: throttle-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: .
+    container_name: throttle-api
+    ports:
+      - "8000:8000"
+    environment:
+      - THROTTLE_ENV=dev
+      - THROTTLE_API_KEYS=dev_key_123,dev_key_456
+      - THROTTLE_REQUIRE_API_KEY=true
+      - THROTTLE_REDIS_URL=redis://redis:6379/0
+      - THROTTLE_RATE_LIMIT=3
+      - THROTTLE_WINDOW_SECONDS=60
+    depends_on:
+      redis:
+        condition: service_healthy

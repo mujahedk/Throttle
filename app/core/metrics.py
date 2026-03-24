@@ -5,10 +5,7 @@ from typing import Dict
 
 
 def mask_key(api_key: str) -> str:
-    """
-    Mask the key so we don't leak full secrets in logs or admin dashboards.
-    Example: dev_key_123 -> dev***
-    """
+    """Truncate key to first 3 chars + *** so secrets never appear in logs or dashboards."""
     if not api_key:
         return ""
     return api_key[:3] + "***"
@@ -16,39 +13,30 @@ def mask_key(api_key: str) -> str:
 
 @dataclass
 class MetricsSnapshot:
-    # totals
     total_requests: int
     allowed_requests: int
     blocked_requests: int
     auth_missing: int
     auth_invalid: int
-    # per-key
     requests_by_key: Dict[str, int] = field(default_factory=dict)
     blocked_by_key: Dict[str, int] = field(default_factory=dict)
-    # when created
     generated_at_epoch: int = field(default_factory=lambda: int(time.time()))
 
 
 class MetricsStore:
     """
-    Thread-safe in-memory metrics store.
-
-    Why thread-safe?
-    - FastAPI/Uvicorn can handle multiple requests at once.
-    - Two requests updating counters simultaneously could corrupt values without a lock.
+    Thread-safe in-memory counters.
+    Stored in-memory intentionally — metrics reset on restart, which is acceptable
+    for a demo. A production system would use Redis or Prometheus.
     """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-
-        # Global counters
         self._total_requests = 0
         self._allowed_requests = 0
         self._blocked_requests = 0
         self._auth_missing = 0
         self._auth_invalid = 0
-
-        # Per-key counters (store masked keys)
         self._requests_by_key: Dict[str, int] = {}
         self._blocked_by_key: Dict[str, int] = {}
 
@@ -77,10 +65,6 @@ class MetricsStore:
             self._auth_invalid += 1
 
     def snapshot(self) -> MetricsSnapshot:
-        """
-        Return an immutable snapshot of metrics right now.
-        We copy dicts so callers can't mutate internal state.
-        """
         with self._lock:
             return MetricsSnapshot(
                 total_requests=self._total_requests,
@@ -93,5 +77,4 @@ class MetricsStore:
             )
 
 
-# Global singleton store (simple MVP approach)
 metrics = MetricsStore()

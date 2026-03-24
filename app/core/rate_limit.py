@@ -17,20 +17,15 @@ class RateLimitResult:
 
 def current_window_id(window_seconds: int, now: Optional[int] = None) -> int:
     """
-    Return the fixed-window bucket ID.
-
-    Example: window_seconds=60
-      - timestamps 0..59    -> window_id 0
-      - timestamps 60..119  -> window_id 1
+    Map a Unix timestamp to a fixed-window bucket ID.
+    e.g. window_seconds=60: timestamps 0-59 → bucket 0, 60-119 → bucket 1
     """
     now = now if now is not None else int(time.time())
     return now // window_seconds
 
 
 def make_redis_key(api_key: str, window_id: int) -> str:
-    """
-    Namespace keys so they are easy to inspect and don't collide with other app keys.
-    """
+    """Key format: rl:<api_key>:<window_id> — namespaced to avoid collisions."""
     return f"rl:{api_key}:{window_id}"
 
 
@@ -41,29 +36,22 @@ def check_rate_limit(
     window_seconds: int,
 ) -> RateLimitResult:
     """
-    Fixed-window rate limiting:
+    Fixed-window rate limiter using Redis INCR + EXPIRE.
 
-    - INCR rl:<api_key>:<window_id>
-    - EXPIRE when first created
-    - If over limit: not allowed, compute retry-after and reset times
+    Trade-off vs sliding window: simpler and cheaper (one INCR), but allows
+    up to 2x the limit in bursts across a window boundary.
     """
     now = int(time.time())
     window_id = current_window_id(window_seconds, now=now)
     key = make_redis_key(api_key, window_id)
 
-    # 1) Increase count atomically
     count = int(r.incr(key))
-
-    # 2) Ensure key expires so the window resets
     if count == 1:
         r.expire(key, window_seconds)
 
-    # 3) Compute window reset time (end of current window)
     window_start = window_id * window_seconds
     reset_epoch = window_start + window_seconds
     seconds_until_reset = max(0, reset_epoch - now)
-
-    # remaining is how many requests are left BEFORE hitting the limit
     remaining = max(0, limit - count)
 
     if count > limit:

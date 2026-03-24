@@ -55,50 +55,53 @@ def dashboard_page():
 
     <div id="errorBox" class="error"></div>
 
-    <div class="row" style="margin-top: 14px;">
-      <div class="card kpi"><div class="label">Total Requests</div><div class="value" id="kpiTotal">—</div></div>
-      <div class="card kpi"><div class="label">Allowed</div><div class="value" id="kpiAllowed">—</div></div>
-      <div class="card kpi"><div class="label">Blocked (429)</div><div class="value" id="kpiBlocked">—</div></div>
-      <div class="card kpi"><div class="label">Auth Missing</div><div class="value" id="kpiAuthMissing">—</div></div>
-      <div class="card kpi"><div class="label">Auth Invalid</div><div class="value" id="kpiAuthInvalid">—</div></div>
+    <div id="lockedMsg" class="card" style="margin-top:20px; text-align:center; padding:40px 20px;">
+      <div style="font-size:15px; opacity:0.6;">Enter a valid API key above to view dashboard data.</div>
     </div>
 
-    <div class="row" style="margin-top: 12px;">
-      <div class="card panel">
-        <div style="display:flex; justify-content: space-between; align-items:center;">
-          <div style="font-weight:700;">Requests by Key</div>
-          <div class="muted" id="lastUpdated">Last updated: —</div>
+    <div id="dataContent" style="display:none;">
+      <div class="row" style="margin-top: 14px;">
+        <div class="card kpi"><div class="label">Total Requests</div><div class="value" id="kpiTotal">&mdash;</div></div>
+        <div class="card kpi"><div class="label">Allowed</div><div class="value" id="kpiAllowed">&mdash;</div></div>
+        <div class="card kpi"><div class="label">Blocked (429)</div><div class="value" id="kpiBlocked">&mdash;</div></div>
+        <div class="card kpi"><div class="label">Auth Missing</div><div class="value" id="kpiAuthMissing">&mdash;</div></div>
+        <div class="card kpi"><div class="label">Auth Invalid</div><div class="value" id="kpiAuthInvalid">&mdash;</div></div>
+      </div>
+
+      <div class="row" style="margin-top: 12px;">
+        <div class="card panel">
+          <div style="display:flex; justify-content: space-between; align-items:center;">
+            <div style="font-weight:700;">Requests by Key</div>
+            <div class="muted" id="lastUpdated">Last updated: &mdash;</div>
+          </div>
+          <div id="byKey" style="margin-top:10px;"></div>
         </div>
-        <div id="byKey" style="margin-top:10px;"></div>
+        <div class="card panel">
+          <div style="font-weight:700;">Blocked by Key</div>
+          <div id="blockedByKey" style="margin-top:10px;"></div>
+        </div>
       </div>
-      <div class="card panel">
-        <div style="font-weight:700;">Blocked by Key</div>
-        <div id="blockedByKey" style="margin-top:10px;"></div>
-      </div>
-    </div>
 
-    <div class="card" style="margin-top: 12px;">
-      <div style="display:flex; justify-content: space-between; align-items:center;">
-        <div style="font-weight:700;">Recent Rate Limit Events</div>
-        <button id="refreshBtn">Refresh</button>
-      </div>
-      <div style="overflow:auto; margin-top:10px;">
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Path</th>
-              <th>API Key</th>
-              <th>Retry-After</th>
-              <th>Reset</th>
-              <th>Count</th>
-            </tr>
-          </thead>
-          <tbody id="eventsTbody"></tbody>
-        </table>
-      </div>
-      <div class="muted" style="margin-top:10px;">
-        Tip: If you see “Unauthorized”, save a valid API key above.
+      <div class="card" style="margin-top: 12px;">
+        <div style="display:flex; justify-content: space-between; align-items:center;">
+          <div style="font-weight:700;">Recent Rate Limit Events</div>
+          <button id="refreshBtn">Refresh</button>
+        </div>
+        <div style="overflow:auto; margin-top:10px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Path</th>
+                <th>API Key</th>
+                <th>Retry-After</th>
+                <th>Reset</th>
+                <th>Count</th>
+              </tr>
+            </thead>
+            <tbody id="eventsTbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>

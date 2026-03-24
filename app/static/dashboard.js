@@ -1,5 +1,5 @@
 function fmtTime(epochSeconds) {
-  if (!epochSeconds) return "—";
+  if (!epochSeconds) return "\u2014";
   const d = new Date(epochSeconds * 1000);
   return d.toLocaleTimeString();
 }
@@ -23,6 +23,16 @@ function saveApiKey(key) {
   localStorage.setItem("THROTTLE_DASH_API_KEY", key);
 }
 
+function showLocked() {
+  document.getElementById("dataContent").style.display = "none";
+  document.getElementById("lockedMsg").style.display = "";
+}
+
+function showUnlocked() {
+  document.getElementById("dataContent").style.display = "";
+  document.getElementById("lockedMsg").style.display = "none";
+}
+
 async function fetchJson(url) {
   const apiKey = getApiKey();
   const res = await fetch(url, {
@@ -32,7 +42,6 @@ async function fetchJson(url) {
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
-    // Try to surface your standardized error envelope
     const code = data?.error?.code || res.status;
     const msg = data?.error?.message || "Request failed";
     throw new Error(`${code}: ${msg}`);
@@ -50,12 +59,10 @@ function renderKeyMap(elId, obj) {
   el.innerHTML = entries
     .sort((a, b) => b[1] - a[1])
     .map(
-      ([
-        k,
-        v,
-      ]) => `<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #1e2a44;">
-        <div>${k}</div><div style="font-weight:700;">${v}</div>
-      </div>`
+      ([k, v]) =>
+        `<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #1e2a44;">
+          <div>${k}</div><div style="font-weight:700;">${v}</div>
+        </div>`
     )
     .join("");
 }
@@ -63,9 +70,9 @@ function renderKeyMap(elId, obj) {
 function renderEvents(events) {
   const tbody = document.getElementById("eventsTbody");
   const rows = (events || []).map((e) => {
-    const retryAfter = e?.details?.retry_after ?? "—";
-    const reset = e?.details?.reset ? fmtTime(e.details.reset) : "—";
-    const count = e?.details?.count ?? "—";
+    const retryAfter = e?.details?.retry_after != null ? `${e.details.retry_after}s` : "\u2014";
+    const reset = e?.details?.reset ? fmtTime(e.details.reset) : "\u2014";
+    const count = e?.details?.count ?? "\u2014";
     return `<tr>
       <td>${fmtTime(e.timestamp_epoch)}</td>
       <td>${e.path}</td>
@@ -88,6 +95,8 @@ async function refresh() {
       fetchJson("/admin/events?limit=25"),
     ]);
 
+    showUnlocked();
+
     document.getElementById("kpiTotal").textContent = m.total_requests;
     document.getElementById("kpiAllowed").textContent = m.allowed_requests;
     document.getElementById("kpiBlocked").textContent = m.blocked_requests;
@@ -101,22 +110,39 @@ async function refresh() {
     document.getElementById("lastUpdated").textContent =
       "Last updated: " + new Date().toLocaleTimeString();
   } catch (err) {
-    setError(err.message);
+    const isAuthError =
+      err.message.includes("AUTH_") ||
+      err.message.includes("401") ||
+      err.message.includes("403");
+    if (isAuthError) {
+      showLocked();
+      setError("Invalid API key. Enter a valid key above.");
+    } else {
+      setError(err.message);
+    }
   }
 }
 
-// Hook up UI
 document.getElementById("saveKeyBtn").addEventListener("click", () => {
   const key = document.getElementById("apiKey").value.trim();
   saveApiKey(key);
-  refresh();
+  if (key) {
+    refresh();
+  } else {
+    setError("");
+    showLocked();
+  }
 });
 
 document
   .getElementById("refreshBtn")
   .addEventListener("click", () => refresh());
 
-// On load: prefill api key and start auto-refresh
+// Init: pre-fill the input from storage; only fetch if a key is present
 document.getElementById("apiKey").value = getApiKey();
-refresh();
+if (getApiKey()) {
+  refresh();
+} else {
+  showLocked();
+}
 setInterval(refresh, 2000);
