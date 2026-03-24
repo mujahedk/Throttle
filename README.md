@@ -4,7 +4,7 @@ A Redis-backed API gateway that enforces per-API-key rate limits, returns standa
 
 ---
 ## Working API Key / Dashboard
-![Working API Key / Dashboard](api/demo-photos/throttle-working-api-key.png)
+![Working API Key / Dashboard](/demo-photos/throttle-working-api-key.png)
 
 ## Quick Start
 
@@ -216,7 +216,7 @@ Enter a valid API key in the input at the top right, then click Save. The dashbo
 - Request and block counts broken down by API key (masked)
 - Recent rate-limit events table with path, key, retry-after, reset time, and request count
 
-![Invalid API Key](api/demo-photos/throttle-invalid-api-key.png)
+![Invalid API Key](/demo-photos/throttle-invalid-api-key.png)
 ---
 
 ## Demo Commands
