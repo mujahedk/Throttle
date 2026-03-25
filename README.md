@@ -3,7 +3,9 @@
 A Redis-backed API gateway that enforces per-API-key rate limits, returns standardized HTTP responses, and exposes a real-time dashboard for monitoring throughput and rate-limit events.
 
 ---
+
 ## Working API Key / Dashboard
+
 ![Working API Key / Dashboard](/demo-photos/throttle-working-api-key.png)
 
 ## Quick Start
@@ -156,11 +158,11 @@ x-api-key: dev_key_123
 
 Configured via `THROTTLE_API_KEYS` (comma-separated list in `.env`).
 
-| Scenario | Response |
-|---|---|
-| Missing key | `401 AUTH_MISSING` |
-| Invalid key | `403 AUTH_INVALID` |
-| Valid key | Proceeds to rate limit check |
+| Scenario    | Response                     |
+| ----------- | ---------------------------- |
+| Missing key | `401 AUTH_MISSING`           |
+| Invalid key | `403 AUTH_INVALID`           |
+| Valid key   | Proceeds to rate limit check |
 
 ---
 
@@ -181,12 +183,12 @@ Request 4  ->  429  (Retry-After: <seconds until window resets>)
 
 **Response headers on every protected request:**
 
-| Header | Meaning |
-|---|---|
-| `X-RateLimit-Limit` | Max requests allowed per window |
-| `X-RateLimit-Remaining` | Requests left in current window |
-| `X-RateLimit-Reset` | Unix timestamp when the window resets |
-| `Retry-After` | Seconds to wait before retrying (only on 429) |
+| Header                  | Meaning                                       |
+| ----------------------- | --------------------------------------------- |
+| `X-RateLimit-Limit`     | Max requests allowed per window               |
+| `X-RateLimit-Remaining` | Requests left in current window               |
+| `X-RateLimit-Reset`     | Unix timestamp when the window resets         |
+| `Retry-After`           | Seconds to wait before retrying (only on 429) |
 
 **Trade-off:** fixed window is simpler and uses one Redis operation per request. The downside is burst tolerance — a client can consume 2x the limit across a window boundary. Sliding window or token bucket would prevent this at the cost of more Redis operations.
 
@@ -194,13 +196,13 @@ Request 4  ->  429  (Retry-After: <seconds until window resets>)
 
 ## Endpoints
 
-| Method | Path | Auth | Rate Limited |
-|---|---|---|---|
-| GET | `/health` | No | No |
-| GET | `/api/v1/echo` | Yes | Yes |
-| GET | `/admin/metrics` | Yes | No |
-| GET | `/admin/events` | Yes | No |
-| GET | `/dashboard` | No | No |
+| Method | Path             | Auth | Rate Limited |
+| ------ | ---------------- | ---- | ------------ |
+| GET    | `/health`        | No   | No           |
+| GET    | `/api/v1/echo`   | Yes  | Yes          |
+| GET    | `/admin/metrics` | Yes  | No           |
+| GET    | `/admin/events`  | Yes  | No           |
+| GET    | `/dashboard`     | No   | No           |
 
 Admin endpoints require a valid API key but are excluded from rate limiting so operators can observe the system even while a key is throttled.
 
@@ -216,8 +218,7 @@ Enter a valid API key in the input at the top right, then click Save. The dashbo
 - Request and block counts broken down by API key (masked)
 - Recent rate-limit events table with path, key, retry-after, reset time, and request count
 
-![Invalid API Key](/demo-photos/throttle-invalid-api-key.png)
----
+## ![Invalid API Key](/demo-photos/throttle-invalid-api-key.png)
 
 ## Demo Commands
 
@@ -287,14 +288,14 @@ curl -H "x-api-key: dev_key_123" http://localhost:8000/admin/events | python3 -m
 
 All settings are read from environment variables (or `.env`):
 
-| Variable | Default | Description |
-|---|---|---|
-| `THROTTLE_ENV` | `dev` | Environment name |
-| `THROTTLE_API_KEYS` | `dev_key_123` | Comma-separated valid API keys |
-| `THROTTLE_REQUIRE_API_KEY` | `true` | Enforce auth on protected routes |
-| `THROTTLE_REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL |
-| `THROTTLE_RATE_LIMIT` | `3` | Max requests per window |
-| `THROTTLE_WINDOW_SECONDS` | `60` | Window duration in seconds |
+| Variable                   | Default                    | Description                      |
+| -------------------------- | -------------------------- | -------------------------------- |
+| `THROTTLE_ENV`             | `dev`                      | Environment name                 |
+| `THROTTLE_API_KEYS`        | `dev_key_123`              | Comma-separated valid API keys   |
+| `THROTTLE_REQUIRE_API_KEY` | `true`                     | Enforce auth on protected routes |
+| `THROTTLE_REDIS_URL`       | `redis://localhost:6379/0` | Redis connection URL             |
+| `THROTTLE_RATE_LIMIT`      | `3`                        | Max requests per window          |
+| `THROTTLE_WINDOW_SECONDS`  | `60`                       | Window duration in seconds       |
 
 For demos, setting `THROTTLE_RATE_LIMIT=3` makes it easy to trigger 429s quickly.
 
@@ -317,28 +318,6 @@ For demos, setting `THROTTLE_RATE_LIMIT=3` makes it easy to trigger 429s quickly
 - **In-memory metrics/events** reset on restart. Acceptable for demo scope; a production deployment would use Redis or an external metrics system.
 - **Admin endpoints not rate-limited** so the dashboard and monitoring remain usable while a key is throttled.
 - **Standardized error envelope** (`{ "error": { "code", "message", "details", "request_id", "timestamp", "path" } }`) on all error responses.
-
----
-
-## Deployment
-
-**This project cannot be deployed to Vercel.** Vercel is a serverless platform designed for stateless functions with no persistent connections. Throttle requires a long-running Python process (Uvicorn) and a persistent Redis instance — both are incompatible with serverless execution.
-
-### Recommended platforms
-
-| Platform | What to deploy |
-|---|---|
-| [Railway](https://railway.app) | Supports Docker Compose directly. Add a Redis plugin and point `THROTTLE_REDIS_URL` at the internal URL. |
-| [Render](https://render.com) | Deploy the API as a Web Service from the Dockerfile. Add a Redis instance from the Render dashboard. |
-| [Fly.io](https://fly.io) | `fly launch` detects the Dockerfile. Run Redis as a separate Fly app or use Upstash Redis. |
-
-### Steps for any platform
-
-1. Push the `api/` directory to a Git repository
-2. Connect to your chosen platform and point it at the `Dockerfile`
-3. Set the environment variables from `.env.example` in the platform's settings
-4. Set `THROTTLE_REDIS_URL` to the internal Redis URL provided by the platform
-5. Deploy — `docker compose up --build` is only for local development
 
 ---
 
