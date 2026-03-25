@@ -35,7 +35,7 @@ bash scripts/reset_redis.sh
 docker compose down
 ```
 
-See [`docs/demo-script.md`](docs/demo-script.md) for the full demo flow and interview talking points.
+See [`docs/demo-script.md`](docs/demo-script.md) for the full demo flow.
 
 ---
 
@@ -97,7 +97,6 @@ api/
     print_settings.py  # Print resolved config values
   docs/
     architecture.md    # Request flow, component map, data flow, design decisions
-    resume-alignment.md # Resume bullets mapped to code + interview talking points
     demo-script.md     # Step-by-step demo guide (30s / 2min / 5min explanations)
   Dockerfile
   docker-compose.yml

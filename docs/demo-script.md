@@ -15,6 +15,7 @@ make start
 This builds and starts both Redis and the API in Docker, then waits until the API is healthy. When it prints the URLs, you're ready.
 
 Expected output:
+
 ```
 Throttle is running.
 
@@ -24,6 +25,7 @@ Throttle is running.
 ```
 
 If you don't have `make`, run directly:
+
 ```bash
 bash scripts/start.sh
 ```
@@ -67,6 +69,7 @@ make demo
 ```
 
 Expected output:
+
 ```
 Throttle rate-limit demo
   API key : dev_key_123
@@ -90,6 +93,7 @@ curl -i -H "x-api-key: dev_key_123" http://localhost:8000/api/v1/echo
 ```
 
 Point out the response headers:
+
 ```
 HTTP/1.1 200 OK
 X-Request-Id: <uuid>
@@ -99,6 +103,7 @@ X-RateLimit-Reset: <epoch timestamp>
 ```
 
 After exceeding the limit:
+
 ```
 HTTP/1.1 429 Too Many Requests
 X-RateLimit-Limit: 3
@@ -138,35 +143,6 @@ Flushes Redis counters instantly — no waiting for the 60-second TTL. Run `make
 ```bash
 make stop
 ```
-
----
-
-## What to Say
-
-### 30-second version
-
-> Throttle is a FastAPI gateway that enforces per-API-key rate limits using Redis. Every request goes through a single middleware that validates the API key, increments a Redis counter for the current time window, and returns a 429 with standard rate-limit headers if the limit is exceeded. There's a live dashboard that shows throughput, blocked requests, and recent rate-limit events.
-
-### 2-minute version
-
-> The core is a single HTTP middleware in `main.py` that handles everything: auth, rate limiting, metrics, and response headers. Auth is checked first — missing or invalid keys get 401 or 403 before Redis is ever touched.
->
-> For valid keys, I call `check_rate_limit()` in `core/rate_limit.py`. It does an atomic `INCR` on a Redis key namespaced as `rl:<api_key>:<window_id>`, where `window_id = unix_timestamp // window_seconds`. On the first request in a window, it also calls `EXPIRE` to set the TTL. If the count exceeds the limit, the middleware returns a 429 with `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After` headers.
->
-> I chose fixed-window rate limiting because it's one Redis operation per request and easy to reason about. The trade-off is that a client can burst 2x the limit across a window boundary — which sliding window or token bucket would prevent, at the cost of more Redis complexity.
->
-> The dashboard polls `/admin/metrics` and `/admin/events` every 2 seconds and shows per-key throughput and rate-limit event history. The metrics are in-memory — a deliberate simplification for this scope.
-
-### 5-minute version
-
-Walk through these points in order, opening files as you go:
-
-1. **Request lifecycle** — open `app/main.py`, show `EXEMPT_PATHS` and `NO_RATE_LIMIT_PATHS` at the top, then walk the middleware top to bottom
-2. **Auth logic** — exempt paths skip auth; admin paths require auth but skip rate limiting; everything else gets both
-3. **Redis key design** — open `app/core/rate_limit.py`, show `make_redis_key()` and `check_rate_limit()`. Then: `docker exec -it throttle-redis redis-cli keys "rl:*"` to show live keys
-4. **Fixed-window trade-off** — INCR is O(1) and atomic. The boundary burst: 10 requests at second 59 + 10 at second 61 = 20 in 2 seconds against a 10/60s limit. Sliding window (ZADD/ZRANGEBYSCORE) solves this at the cost of more ops
-5. **Standardized errors** — open `app/core/errors.py`, show `APIError.to_dict()`. Every error (401, 403, 429, 500) produces the same envelope
-6. **Dashboard + observability** — open `app/core/metrics.py` and `app/core/events.py`. Metrics are thread-safe in-memory counters. Production path: push to Redis with INCR or expose a Prometheus `/metrics` endpoint
 
 ---
 
